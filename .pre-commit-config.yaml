@@ -1,0 +1,12 @@
+repos:
+  - repo: local
+    hooks:
+      - id: no-plaintext-airbnb-secrets
+        name: Block plaintext Airbnb secrets
+        description: >-
+          Fails if any Airbnb-specific plaintext file is staged. These must be sealed
+          with `just encrypt-airbnb` (see CLAUDE.md, "Airbnb secrets") before commit.
+        entry: >-
+          bash -c 'for f in "$@"; do echo "ERROR: plaintext Airbnb secret staged: $f (run: just encrypt-airbnb)" >&2; done; exit 1'
+        language: system
+        files: ^(claude/airbnb/rules/(ghe-access|link-validation-airbnb|substantiate-airbnb)\.md|zsh/zsh/\.zshrc\.d/80-airbnb(-functions|-aliases)?\.zsh)$

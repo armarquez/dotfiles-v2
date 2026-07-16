@@ -1,0 +1,7 @@
+[tools]
+just  = "1.53.0"
+jq    = "1.8.1"
+fzf   = "0.73.1"
+age   = "1.3.1"
+delta = "0.19.2"
+# stow is a system prereq (not in mise registry) — install via brew or apt

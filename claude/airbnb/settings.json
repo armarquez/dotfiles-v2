@@ -1,0 +1,6 @@
+{
+  "enabledPlugins": {
+    "datako@infrastructure-org": true,
+    "ssvc-tools@security": true
+  }
+}

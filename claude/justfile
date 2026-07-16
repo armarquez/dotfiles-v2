@@ -1,0 +1,376 @@
+# Claude Code config management recipes
+# Invoked as `just claude <recipe>` from the dotfiles root via `mod claude`
+#
+# Layout:
+#   claude/base/      — always stowed into ~/.claude
+#   claude/airbnb/    — stowed only when an Airbnb environment is detected
+#   claude/.upstream/ — committed baseline snapshots for 3-way upstream merge
+#
+# justfile_directory() in a `mod` context resolves to the root dotfiles dir.
+
+STOW_DIR := justfile_directory() / "claude"
+TARGET   := home_directory() / ".claude"
+FORK     := "armarquez/claude-code-config"
+
+# Show available recipes
+default:
+    @just --list
+
+# Symlink Claude config into ~/.claude (backs up any existing non-symlink files)
+stow:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    STOW_DIR="{{ STOW_DIR }}"
+    TARGET="{{ TARGET }}"
+
+    # Detect Airbnb environment — mirrors _is_airbnb_env() in 80-airbnb.zsh
+    # Override with CLAUDE_FORCE_AIRBNB=1 (force on) or =0 (force off)
+    _is_airbnb_env() {
+        if [[ "${CLAUDE_FORCE_AIRBNB:-}" == "1" ]]; then return 0; fi
+        if [[ "${CLAUDE_FORCE_AIRBNB:-}" == "0" ]]; then return 1; fi
+        command -v yak    &>/dev/null && return 0
+        [[ -d "$HOME/dev/airbnb" ]]   && return 0
+        command -v airlab &>/dev/null && return 0
+        [[ -d "$HOME/.airlab" ]]      && return 0
+        return 1
+    }
+
+    echo "==> Stowing Claude base config into $TARGET ..."
+
+    # Back up real (non-symlink) files that stow would replace
+    for rel in CLAUDE.md statusline.sh; do
+        target_file="$TARGET/$rel"
+        if [[ -f "$target_file" && ! -L "$target_file" ]]; then
+            echo "==> Backing up $target_file -> ${target_file}.bak"
+            mv "$target_file" "${target_file}.bak"
+        fi
+    done
+    for src in "$STOW_DIR/base/rules/"*.md; do
+        [[ -f "$src" ]] || continue
+        target_rule="$TARGET/rules/$(basename "$src")"
+        if [[ -f "$target_rule" && ! -L "$target_rule" ]]; then
+            echo "==> Backing up $target_rule -> ${target_rule}.bak"
+            mv "$target_rule" "${target_rule}.bak"
+        fi
+    done
+
+    # settings.json is generated (not symlinked) — exclude it from stow
+    stow --ignore='settings.json' --target="$TARGET" --dir="$STOW_DIR" base
+
+    if _is_airbnb_env; then
+        echo "==> Airbnb environment detected — stowing Airbnb rules ..."
+        for src in "$STOW_DIR/airbnb/rules/"*.md; do
+            [[ -f "$src" ]] || continue
+            target_rule="$TARGET/rules/$(basename "$src")"
+            if [[ -f "$target_rule" && ! -L "$target_rule" ]]; then
+                echo "==> Backing up $target_rule -> ${target_rule}.bak"
+                mv "$target_rule" "${target_rule}.bak"
+            fi
+        done
+        stow --ignore='settings.json' --target="$TARGET" --dir="$STOW_DIR" airbnb
+        echo "==> Airbnb rules linked."
+    else
+        echo "==> Personal environment — skipping Airbnb rules."
+    fi
+
+    "{{ just_executable() }}" --justfile="{{ source_file() }}" gen-settings
+    echo "==> Done. Run 'ls -la ~/.claude/rules/' to verify."
+
+# Re-stow (useful after adding new files to either package)
+restow:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    STOW_DIR="{{ STOW_DIR }}"
+    TARGET="{{ TARGET }}"
+
+    _is_airbnb_env() {
+        if [[ "${CLAUDE_FORCE_AIRBNB:-}" == "1" ]]; then return 0; fi
+        if [[ "${CLAUDE_FORCE_AIRBNB:-}" == "0" ]]; then return 1; fi
+        command -v yak    &>/dev/null && return 0
+        [[ -d "$HOME/dev/airbnb" ]]   && return 0
+        command -v airlab &>/dev/null && return 0
+        [[ -d "$HOME/.airlab" ]]      && return 0
+        return 1
+    }
+
+    stow --ignore='settings.json' --restow --target="$TARGET" --dir="$STOW_DIR" base
+
+    if _is_airbnb_env; then
+        stow --ignore='settings.json' --restow --target="$TARGET" --dir="$STOW_DIR" airbnb
+        echo "==> Re-stowed base + airbnb."
+    else
+        # Remove any previously stowed Airbnb rules if env switched
+        stow --ignore='settings.json' --delete --target="$TARGET" --dir="$STOW_DIR" airbnb 2>/dev/null || true
+        echo "==> Re-stowed base only (Airbnb rules removed)."
+    fi
+
+    "{{ just_executable() }}" --justfile="{{ source_file() }}" gen-settings
+
+# Remove all stow-managed symlinks from ~/.claude
+unstow:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    STOW_DIR="{{ STOW_DIR }}"
+    TARGET="{{ TARGET }}"
+    stow --ignore='settings.json' --delete --target="$TARGET" --dir="$STOW_DIR" base
+    stow --ignore='settings.json' --delete --target="$TARGET" --dir="$STOW_DIR" airbnb 2>/dev/null || true
+    # settings.json is a generated file, not a stow symlink — remove it explicitly
+    rm -f "$TARGET/settings.json"
+    echo "==> Unstowed all Claude config."
+
+# Merge base + airbnb settings.json into ~/.claude/settings.json
+# Called automatically by stow/restow; also runnable standalone to regen without re-stowing.
+gen-settings:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # source_directory() is always this file's dir (claude/), regardless of whether
+    # called via `just claude gen-settings` (mod) or `just --justfile=claude/justfile`.
+    # STOW_DIR uses justfile_directory() which changes per invocation context.
+    STOW_DIR="{{ source_directory() }}"
+    TARGET="{{ TARGET }}"
+
+    command -v jq >/dev/null || {
+        echo "ERROR: jq is required to merge settings.json"
+        echo "  Install via: mise install jq  OR  brew install jq  OR  apt-get install jq"
+        exit 1
+    }
+
+    _is_airbnb_env() {
+        if [[ "${CLAUDE_FORCE_AIRBNB:-}" == "1" ]]; then return 0; fi
+        if [[ "${CLAUDE_FORCE_AIRBNB:-}" == "0" ]]; then return 1; fi
+        command -v yak    &>/dev/null && return 0
+        [[ -d "$HOME/dev/airbnb" ]]   && return 0
+        command -v airlab &>/dev/null && return 0
+        [[ -d "$HOME/.airlab" ]]      && return 0
+        return 1
+    }
+
+    rm -f "$TARGET/settings.json"
+    if _is_airbnb_env; then
+        jq -s '.[0] * .[1]' \
+            "$STOW_DIR/base/settings.json" \
+            "$STOW_DIR/airbnb/settings.json" \
+            > "$TARGET/settings.json"
+        echo "==> Merged base + airbnb settings.json"
+    else
+        jq . "$STOW_DIR/base/settings.json" > "$TARGET/settings.json"
+        echo "==> Wrote base settings.json (personal env)"
+    fi
+
+# Show what changed upstream since the last sync (snapshot vs remote, delta-rendered)
+# Run sync-upstream to pull changes in.
+check-upstream:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    export GH_HOST=github.com
+    FORK="{{ FORK }}"
+    STOW_DIR="{{ STOW_DIR }}"
+    UPSTREAM_DIR="$STOW_DIR/.upstream"
+    tmpdir=$(mktemp -d)
+    trap 'rm -rf "$tmpdir"' EXIT
+
+    # Render a diff using delta if available, otherwise git diff --no-index
+    _show_diff() {
+        local label="$1" snapshot="$2" remote="$3"
+        echo "=== $label ==="
+        if command -v delta &>/dev/null; then
+            delta --line-numbers --paging=never "$snapshot" "$remote" || true
+        else
+            git diff --no-index --color "$snapshot" "$remote" || true
+        fi
+        echo
+    }
+
+    # Fetch a single file from the fork; writes to $tmpdir/<basename>
+    # Returns 1 and prints a warning if the fetch fails.
+    _fetch() {
+        local remote_path="$1" dest="$2"
+        local url
+        url=$(gh api "repos/$FORK/contents/$remote_path" --jq .download_url 2>/dev/null) || {
+            echo "  [WARN] Could not reach fork for $remote_path"; return 1
+        }
+        curl -sf "$url" -o "$dest" || {
+            echo "  [WARN] Download failed for $remote_path"; return 1
+        }
+    }
+
+    # Mapping: "fork_path|local_file|label" (space-separated list; bash 3.2 safe)
+    FILES=(
+        "settings.json|$STOW_DIR/base/settings.json|settings.json"
+        "claude-md-template.md|$STOW_DIR/base/CLAUDE.md|CLAUDE.md"
+        "scripts/statusline.sh|$STOW_DIR/base/statusline.sh|statusline.sh"
+    )
+
+    any_change=0
+    changed_files=""
+
+    for entry in "${FILES[@]}"; do
+        IFS='|' read -r fork_path local_file label <<< "$entry"
+        snapshot="$UPSTREAM_DIR/$(basename "$local_file")"
+        remote_tmp="$tmpdir/$(basename "$local_file")"
+
+        if ! _fetch "$fork_path" "$remote_tmp"; then
+            continue
+        fi
+
+        if [[ ! -f "$snapshot" ]]; then
+            echo "--- $label: no baseline yet ---"
+            echo "  Run 'just claude sync-upstream' to establish a baseline."
+            echo
+            continue
+        fi
+
+        if cmp -s "$snapshot" "$remote_tmp"; then
+            echo "--- $label: up to date ---"
+            echo
+        else
+            any_change=1
+            changed_files="$changed_files $label"
+            _show_diff "$label" "$snapshot" "$remote_tmp"
+        fi
+    done
+
+    if [[ $any_change -eq 1 ]]; then
+        echo "==> Upstream changes found in:$changed_files"
+        echo "    Run 'just claude sync-upstream' to merge them into your local files."
+    else
+        echo "==> All files match upstream — nothing to sync."
+    fi
+
+# Merge upstream changes into local files while preserving local customizations.
+# Uses a 3-way merge (base=snapshot, ours=local, theirs=remote) so only genuine
+# conflicts require manual resolution. Advances the .upstream/ baseline afterward.
+sync-upstream:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    export GH_HOST=github.com
+    FORK="{{ FORK }}"
+    STOW_DIR="{{ STOW_DIR }}"
+    UPSTREAM_DIR="$STOW_DIR/.upstream"
+    tmpdir=$(mktemp -d)
+    trap 'rm -rf "$tmpdir"' EXIT
+
+    mkdir -p "$UPSTREAM_DIR"
+
+    _fetch() {
+        local remote_path="$1" dest="$2"
+        local url
+        url=$(gh api "repos/$FORK/contents/$remote_path" --jq .download_url 2>/dev/null) || {
+            echo "  [WARN] Could not reach fork for $remote_path"; return 1
+        }
+        curl -sf "$url" -o "$dest" || {
+            echo "  [WARN] Download failed for $remote_path"; return 1
+        }
+    }
+
+    FILES=(
+        "settings.json|$STOW_DIR/base/settings.json|settings.json"
+        "claude-md-template.md|$STOW_DIR/base/CLAUDE.md|CLAUDE.md"
+        "scripts/statusline.sh|$STOW_DIR/base/statusline.sh|statusline.sh"
+    )
+
+    seeded=""
+    merged_clean=""
+    needs_resolution=""
+
+    for entry in "${FILES[@]}"; do
+        IFS='|' read -r fork_path local_file label <<< "$entry"
+        snapshot="$UPSTREAM_DIR/$(basename "$local_file")"
+        remote_tmp="$tmpdir/$(basename "$local_file")"
+        merged_tmp="$tmpdir/merged_$(basename "$local_file")"
+
+        if ! _fetch "$fork_path" "$remote_tmp"; then
+            continue
+        fi
+
+        if [[ ! -f "$snapshot" ]]; then
+            # First run: seed the baseline without touching the local file
+            cp "$remote_tmp" "$snapshot"
+            seeded="$seeded $label"
+            continue
+        fi
+
+        if cmp -s "$snapshot" "$remote_tmp"; then
+            # No upstream change; nothing to do
+            continue
+        fi
+
+        # 3-way merge: base=snapshot, ours=local, theirs=remote
+        # git merge-file -p writes to stdout and exits non-zero on conflict
+        if git merge-file -p "$local_file" "$snapshot" "$remote_tmp" > "$merged_tmp" 2>/dev/null; then
+            cp "$merged_tmp" "$local_file"
+            cp "$remote_tmp" "$snapshot"
+            merged_clean="$merged_clean $label"
+        else
+            # Conflict: write merge result with conflict markers into the local file
+            cp "$merged_tmp" "$local_file"
+            cp "$remote_tmp" "$snapshot"
+            needs_resolution="$needs_resolution $label"
+        fi
+
+        # Validate settings.json is still parseable after merge
+        if [[ "$local_file" == *"settings.json" ]]; then
+            if ! jq empty "$local_file" 2>/dev/null; then
+                echo "  [WARN] $label contains invalid JSON after merge — conflict markers likely present."
+                echo "         Edit $local_file to resolve, then run 'just claude gen-settings'."
+            fi
+        fi
+    done
+
+    # Summary
+    if [[ -n "$seeded" ]]; then
+        echo "==> Seeded baseline (no local changes applied):$seeded"
+        echo "    Future runs of check-upstream and sync-upstream will use this as the base."
+    fi
+    if [[ -n "$merged_clean" ]]; then
+        echo "==> Merged cleanly:$merged_clean"
+    fi
+    if [[ -n "$needs_resolution" ]]; then
+        echo
+        echo "==> NEEDS MANUAL RESOLUTION (conflict markers present):$needs_resolution"
+        echo "    Look for <<<<<<< / ======= / >>>>>>> in those files, resolve, then:"
+        echo "      just claude gen-settings  # if settings.json was affected"
+        echo "      just claude restow        # to propagate changes to ~/.claude/"
+    elif [[ -n "$merged_clean" ]]; then
+        echo "    Run 'just claude restow' to propagate merged changes to ~/.claude/."
+    fi
+
+    if [[ -z "$seeded" && -z "$merged_clean" && -z "$needs_resolution" ]]; then
+        echo "==> Nothing to sync — all files already up to date with upstream."
+    fi
+
+# Diff vendored files against the current fork to surface upstream changes (local vs remote, no baseline)
+check-upstream-raw:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    export GH_HOST=github.com
+    FORK="{{ FORK }}"
+    BASE="{{ STOW_DIR }}/base"
+    any_diff=0
+
+    fetch_and_diff() {
+        local remote_path="$1" local_file="$2" label="$3"
+        echo "--- $label ---"
+        url=$(gh api "repos/$FORK/contents/$remote_path" --jq .download_url 2>/dev/null) || {
+            echo "  [WARN] Could not fetch $remote_path from fork"; return
+        }
+        remote_content=$(curl -sf "$url") || {
+            echo "  [WARN] Download failed for $remote_path"; return
+        }
+        if diff <(echo "$remote_content") "$local_file" >/dev/null 2>&1; then
+            echo "  (no diff)"
+        else
+            diff <(echo "$remote_content") "$local_file" || true
+            any_diff=1
+        fi
+    }
+
+    fetch_and_diff "settings.json"         "$BASE/settings.json" "settings.json"
+    fetch_and_diff "claude-md-template.md" "$BASE/CLAUDE.md"     "CLAUDE.md (from claude-md-template.md)"
+    fetch_and_diff "scripts/statusline.sh" "$BASE/statusline.sh" "statusline.sh"
+
+    if [[ "$any_diff" -eq 0 ]]; then
+        echo "==> All vendored files match the fork — nothing to cherry-pick."
+    else
+        echo "==> Diffs shown above. Review and manually apply anything you want to keep."
+    fi
