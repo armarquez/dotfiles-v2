@@ -21,6 +21,7 @@ export PYENV_ROOT=$HOME/.pyenv
 # Mac specific installed with homebrew
 if can_haz mise > /dev/null; then
   export GOROOT=$(mise where go 2>/dev/null)
+  eval "$(mise activate zsh)"
 else
   if [[ "$(uname -s)" == "Darwin" ]]; then
     if can_haz brew; then
