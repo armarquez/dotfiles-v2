@@ -95,3 +95,32 @@ mkdir -p ~/.zsh-completions
 ln -s /usr/local/Caskroom/google-cloud-sdk/latest/google-cloud-sdk/path.zsh.inc ~/.zsh-completions/path.zsh.inc
 ln -s /usr/local/Caskroom/google-cloud-sdk/latest/google-cloud-sdk/completion.zsh.inc ~/.zsh-completions/completion.zsh.inc
 ```
+
+## Cloud dev workspaces (bare clone layout)
+
+Some cloud dev environments clone this repo bare to `$HOME/.dotfiles` (work-tree `$HOME`), then
+run `.init.sh` once on a brand-new workspace and `.startup.sh` on every start/resume. `.startup.sh`
+self-heals: if `~/.zshrc` isn't a symlink or `~/.claude/settings.json` is missing, it re-runs
+`.init.sh`.
+
+### Known issue: unattended clone can fail for personal-namespace repos
+
+Some of these platforms run the bootstrap clone before any personal SSH agent is forwarded, so
+`git clone --bare` against a personal-namespace repo can fail with an SSH certificate scoping
+error tied to the platform's own credential policy. The workspace comes up degraded and dotfiles
+are never cloned. This is a platform-level issue, not something fixable from this repo — report it
+to whoever owns the platform.
+
+**Recovery** — inside a live interactive session on the workspace (where your personal SSH agent
+is forwarded):
+
+```bash
+rm -rf ~/.dotfiles
+git clone --bare <your-dotfiles-remote-url> ~/.dotfiles
+git --git-dir="$HOME/.dotfiles" --work-tree="$HOME" config status.showUntrackedFiles no
+git --git-dir="$HOME/.dotfiles" --work-tree="$HOME" reset --hard main
+~/.init.sh
+```
+
+If the clone already exists but is stale or diverged, `just repair-bare-clone` does the fetch +
+reset + re-init in one step (run from `$HOME`, since that's where the stowed `justfile` lives).

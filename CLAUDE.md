@@ -76,6 +76,11 @@ an LDAP username, and a work email — sensitive enough to keep out of plaintext
 - **`just decrypt-airbnb`** unseals `secrets/vault/` ciphertext → plaintext on a new machine. Prompts
   for the passphrase exactly once, then reuses the unlocked identity for all files. **Run this before
   `just claude stow` or `just restow`** — those recipes link/source the plaintext files, which won't
-  exist yet otherwise.
+  exist yet otherwise. `.init.sh` runs it automatically before stowing.
+- **Non-interactive unseal for unattended bootstrap (e.g. cloud dev workspaces):** `decrypt-airbnb` also checks
+  `$AIRBNB_AGE_IDENTITY` and `~/.config/age/airbnb-identity.txt` — a **plaintext** age identity
+  file kept outside the repo — before falling back to the passphrase prompt on
+  `secrets/airbnb-identity.age`. Drop the plaintext identity there once per machine/workspace
+  (survives restarts); never commit it.
 - **New sensitive Airbnb content must be sealed (`just encrypt-airbnb`) before committing.** Never
   commit the plaintext identity (`age-keygen` output) — only the passphrase-sealed `.age` form.

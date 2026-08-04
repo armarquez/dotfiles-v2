@@ -66,7 +66,7 @@ brew install jq stow git-delta
 ## Environment detection
 
 The `stow` and `restow` recipes auto-detect Airbnb environment by checking (in order):
-1. `command -v yak` (AirDev workspace CLI)
+1. `command -v yak` (cloud dev workspace CLI)
 2. `~/dev/airbnb` directory
 3. `command -v airlab`
 4. `~/.airlab` directory

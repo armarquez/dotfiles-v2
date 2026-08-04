@@ -15,16 +15,47 @@ init:
 startup:
     ./.startup.sh
 
-# Symlink dotfiles using stow
-stow:
+# Back up any real (non-symlink) files under $HOME that the zsh package would overwrite
+# (e.g. a base-image ~/.zshrc) — mirrors the same pattern in claude/justfile's stow recipe.
+# Pre-creates .zshrc.d as a real directory first, so stow always links its fragments
+# individually instead of symlinking the whole directory — walking a symlinked directory's
+# contents would resolve straight back to the source files themselves, and "backing up" a
+# conflict there would actually rename the repo's own tracked files.
+_backup-zsh-conflicts:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    STOW_DIR="{{ justfile_directory() }}/zsh/zsh"
+    TARGET="{{ home_directory() }}"
+    mkdir -p "$TARGET/.zshrc.d"
+    # find, not a bare glob, so dotfiles (.zshrc, .zshrc.d, ...) are included.
+    while IFS= read -r -d '' entry; do
+        name="$(basename "$entry")"
+        target="$TARGET/$name"
+        [[ -L "$target" ]] && continue
+        if [[ -d "$entry" ]]; then
+            while IFS= read -r -d '' sub; do
+                subtarget="$target/$(basename "$sub")"
+                if [[ -f "$subtarget" && ! -L "$subtarget" ]]; then
+                    echo "==> Backing up $subtarget -> ${subtarget}.pre-dotfiles.bak"
+                    mv "$subtarget" "${subtarget}.pre-dotfiles.bak"
+                fi
+            done < <(find "$entry" -mindepth 1 -maxdepth 1 -type f -print0)
+        elif [[ -f "$target" ]]; then
+            echo "==> Backing up $target -> ${target}.pre-dotfiles.bak"
+            mv "$target" "${target}.pre-dotfiles.bak"
+        fi
+    done < <(find "$STOW_DIR" -mindepth 1 -maxdepth 1 -print0)
+
+# Symlink dotfiles using stow (backs up existing non-symlink files first)
+stow: _backup-zsh-conflicts
     cd zsh && stow --target="$HOME" zsh
 
 # Remove symlinks created by stow
 unstow:
     cd zsh && stow --delete --target="$HOME" zsh
 
-# Re-stow (useful after adding new files)
-restow:
+# Re-stow (useful after adding new files) — backs up conflicts first, same as stow
+restow: _backup-zsh-conflicts
     cd zsh && stow --restow --target="$HOME" zsh
 
 # Add zsh-quickstart-kit as a remote (safe to run multiple times)
@@ -122,12 +153,30 @@ encrypt-airbnb:
         echo "sealed: $vaulted"
     done
 
-# Unseal secrets/vault/ ciphertext into plaintext Airbnb files (prompts once for the passphrase)
+# Unseal secrets/vault/ ciphertext into plaintext Airbnb files.
+# Identity resolution order: $AIRBNB_AGE_IDENTITY (plaintext age key) ->
+# ~/.config/age/airbnb-identity.txt (plaintext age key, outside the repo) ->
+# secrets/airbnb-identity.age (passphrase-sealed, prompts once). The plaintext
+# paths let unattended bootstrap (no TTY) unseal without a password prompt.
 decrypt-airbnb:
     #!/usr/bin/env bash
     set -euo pipefail
     command -v age >/dev/null || { echo "ERROR: age not installed (mise install age / brew install age)"; exit 1; }
-    identity="$(age -d -o - "{{ AGE_IDENTITY }}")"
+
+    identity=""
+    if [[ -n "${AIRBNB_AGE_IDENTITY:-}" && -f "${AIRBNB_AGE_IDENTITY}" ]]; then
+        identity="$(cat "${AIRBNB_AGE_IDENTITY}")"
+    elif [[ -f "$HOME/.config/age/airbnb-identity.txt" ]]; then
+        identity="$(cat "$HOME/.config/age/airbnb-identity.txt")"
+    elif [[ -t 0 ]]; then
+        identity="$(age -d -o - "{{ AGE_IDENTITY }}")"
+    else
+        echo "==> No age identity available non-interactively — skipping Airbnb decrypt."
+        echo "    Provide one via \$AIRBNB_AGE_IDENTITY or ~/.config/age/airbnb-identity.txt,"
+        echo "    or run 'just decrypt-airbnb' by hand in an interactive shell."
+        exit 0
+    fi
+
     for f in {{ AIRBNB_FILES }}; do
         vaulted="{{ AGE_VAULT }}/$f.age"
         if [[ ! -f "$vaulted" ]]; then
@@ -137,6 +186,29 @@ decrypt-airbnb:
         age -d -i <(printf '%s' "$identity") -o "$f" "$vaulted"
         echo "opened: $f"
     done
+
+# One-command recovery for a stale/failed bootstrap in cloud dev environments
+# that clone this repo as a bare git dir (see README "Cloud dev workspaces"
+# section): re-syncs the bare repo clone at $HOME/.dotfiles against
+# origin/main, then re-runs .init.sh. No-ops unless $HOME/.dotfiles is
+# actually a bare git dir, so it's safe to run on a normal clone too.
+repair-bare-clone:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    DOTFILES_GIT_DIR="$HOME/.dotfiles"
+    if [[ ! -d "$DOTFILES_GIT_DIR" ]] \
+        || [[ "$(git --git-dir="$DOTFILES_GIT_DIR" rev-parse --is-bare-repository 2>/dev/null)" != "true" ]]; then
+        echo "==> $DOTFILES_GIT_DIR is not a bare git dir — nothing to repair here."
+        exit 0
+    fi
+    echo "==> Syncing $DOTFILES_GIT_DIR against origin/main..."
+    # A bare clone mirrors branches directly under refs/heads/* — there's no
+    # refs/remotes/origin/* tracking namespace to reset against, so target
+    # FETCH_HEAD instead, which `git fetch <remote> <ref>` always populates.
+    git --git-dir="$DOTFILES_GIT_DIR" --work-tree="$HOME" fetch origin main
+    git --git-dir="$DOTFILES_GIT_DIR" --work-tree="$HOME" reset --hard FETCH_HEAD
+    echo "==> Re-running .init.sh..."
+    "$HOME/.init.sh"
 
 # Migrate an existing armarquez/dotfiles clone to dotfiles-v2 (see README "Migrating" section).
 # dotfiles-v2 starts from a single fresh commit with no shared history, so this is a hard reset,

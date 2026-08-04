@@ -37,6 +37,10 @@ stow:
 
     echo "==> Stowing Claude base config into $TARGET ..."
 
+    # stow requires the target dir to already exist (e.g. on a fresh machine
+    # that's never run Claude Code, ~/.claude won't exist yet).
+    mkdir -p "$TARGET/rules"
+
     # Back up real (non-symlink) files that stow would replace
     for rel in CLAUDE.md statusline.sh; do
         target_file="$TARGET/$rel"
@@ -93,6 +97,7 @@ restow:
         return 1
     }
 
+    mkdir -p "$TARGET"
     stow --ignore='settings.json' --restow --target="$TARGET" --dir="$STOW_DIR" base
 
     if _is_airbnb_env; then

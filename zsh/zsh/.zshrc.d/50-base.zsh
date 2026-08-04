@@ -11,6 +11,11 @@ function can_haz() {
   which "$@" > /dev/null 2>&1
 }
 
+# The subtree is updated deliberately via `just update-zsh`, not by the kit's
+# own shell-startup self-update (which does blocking git fetch/pull against
+# the personal repo and fails in environments without git network access).
+unset QUICKSTART_KIT_REFRESH_IN_DAYS
+
 # Setting up Golang environment variables
 export GOPATH=$HOME/golang
 export GOBIN=$GOPATH/bin
