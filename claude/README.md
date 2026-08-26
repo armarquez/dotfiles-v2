@@ -15,10 +15,13 @@ Claude Code configuration, managed as GNU Stow packages targeting `~/.claude/`.
 | `statusline.sh` | `statusline.sh` | Two-line statusline (model, folder, branch, context %, cost, duration) |
 | `rules/diagrams.md` | `rules/diagrams.md` | Always use MermaidJS for diagrams |
 | `rules/writing-style.md` | `rules/writing-style.md` | Concise, scannable technical writing standards |
+| `rules/design-doc-voice.md` | `rules/design-doc-voice.md` | Design doc structure, voice, and conciseness enforcement |
 | `rules/no-repetition.md` | `rules/no-repetition.md` | Single-source rule for docs |
 | `rules/remediation-design.md` | `rules/remediation-design.md` | Audit → enforce rollout pattern |
 | `rules/link-validation.md` | `rules/link-validation.md` | Validate all links before finalizing docs |
 | `rules/substantiate.md` | `rules/substantiate.md` | Always back factual claims with verifiable evidence |
+| `rules/pr-drafting.md` | `rules/pr-drafting.md` | Open PRs as drafts, follow the repo template, keep descriptions concise |
+| `rules/pr-comments.md` | `rules/pr-comments.md` | Confirm with me before posting any PR comment or review reply |
 
 ### `airbnb/` — stowed only on Airbnb machines
 
