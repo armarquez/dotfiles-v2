@@ -1,0 +1,27 @@
+# Don't remove the zsh-quickstart-kit comment or selfupdate will break.
+# zsh-quickstart-kit
+*.*.un~
+*.a
+*.bz2
+*.gz
+*.o
+*.pyc
+*.pyo
+*.sublime-project
+*.sublime-workspace
+*.tbz
+*.tbz2
+*.tgz
+*.Z
+*~
+.DS_Store
+.idea
+.vscode
+# Make it easier to mark something not to be committed
+# dc = don't commit
+*.dc.*
+*.log
+
+# It is necessary for the update to work correctly, if there are added scripts.
+zsh/.zshrc.d
+!zsh/.zshrc.d/001-load-mise-if-present
