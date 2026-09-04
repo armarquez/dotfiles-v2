@@ -1,7 +1,7 @@
 # ZSH Quickstart Kit
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Build Status](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Factions-badge.atrox.dev%2Funixorn%2Fzsh-quickstart-kit%2Fbadge&style=plastic)](https://actions-badge.atrox.dev/unixorn/zsh-quickstart-kit/goto)
+[![Build Status](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Factions-badge.atrox.dev%2Funixorn%2Fzsh-quickstart-kit%2Fbadge%3Fref%3Dmain&style=plastic)](https://actions-badge.atrox.dev/unixorn/zsh-quickstart-kit/goto?ref=main)
 ![Awesomebot](https://github.com/unixorn/zsh-quickstart-kit/actions/workflows/awesomebot.yml/badge.svg)
 ![Megalinter](https://github.com/unixorn/zsh-quickstart-kit/actions/workflows/mega-linter.yml/badge.svg)
 [![GitHub last commit (branch)](https://img.shields.io/github/last-commit/unixorn/zsh-quickstart-kit/main.svg)](https://github.com/unixorn/zsh-quickstart-kit)
@@ -17,6 +17,8 @@
   - [OS-specific setup](#os-specific-setup)
     - [fzf](#fzf)
     - [macOS](#macos)
+        - [Bootstrap](#bootstrap)
+        - [Mostly Manual](#mostly-manual)
     - [Linux](#linux)
   - [Set up Zgenom and the starter kit](#set-up-zgenom-and-the-starter-kit)
 - [Contents of the kit](#contents-of-the-kit)
@@ -25,8 +27,15 @@
   - [Behavior toggles](#behavior-toggles)
     - [zqs](#zqs)
       - [zqs check-for-updates](#zqs-check-for-updates)
-      - [zqs-disable-bindkey-handling](#zqs-disable-bindkey-handling)
-      - [zqs-enable-bindkey-handling](#zqs-enable-bindkey-handling)
+      - [zqs-compdef-as](#zqs-compdef-as)
+      - [zqs disable-bindkey-handling](#zqs-disable-bindkey-handling)
+      - [zqs disable-1password-agent](#zqs-disable-1password-agent)
+      - [zqs enable-1password-agent](#zqs-enable-1password-agent)
+      - [zqs enable-bindkey-handling](#zqs-enable-bindkey-handling)
+      - [zqs disable-fzf-zsh-plugin](#zqs-disable-fzf-zsh-plugin)
+      - [zqs enable-fzf-zsh-plugin](#zqs-enable-fzf-zsh-plugin)
+      - [zqs disable-diff-so-fancy](#zqs-disable-diff-so-fancy)
+      - [zqs enable-diff-so-fancy](#zqs-enable-diff-so-fancy)
       - [zqs disable-omz-plugins](#zqs-disable-omz-plugins)
       - [zqs enable-control-c-decorator](#zqs-enable-control-c-decorator)
       - [zqs disable-control-c-decorator](#zqs-disable-control-c-decorator)
@@ -39,6 +48,8 @@
       - [zqs-enable-ssh-key-loading](#zqs-enable-ssh-key-loading)
       - [zqs-disable-zmv-autoloading](#zqs-disable-zmv-autoloading)
       - [zqs-enable-zmv-autoloading](#zqs-enable-zmv-autoloading)
+      - [zqs-disable-zsh-profiling](#zqs-disable-zsh-profiling)
+      - [zqs-enable-zsh-profiling](#zqs-enable-zsh-profiling)
       - [zqs selfupdate](#zqs-selfupdate)
       - [zqs update](#zqs-update)
       - [zqs update-plugins](#zqs-update-plugins)
@@ -112,6 +123,13 @@ To enable the enhanced history search, you'll need to install [fzf](https://gith
 
 <details><summary>macOS instructions</summary>
 
+###### Bootstrap
+
+1. Clone this repo
+2. In a terminal of your choice run `chmod +x bootsrap-zsh-quickstart-kit` to make bootsrap-zsh-quickstart-kit executable
+3. In that same terminal run `./bootsrap-zsh-quickstart-kit` and follow the onscreen prompts
+
+###### Mostly Manual
 1. Download iTerm2 from [http://www.iterm2.com](http://www.iterm2.com) (optional). In my opinion, it is considerably nicer than the stock Terminal application that comes with macOS. There is an RCE flaw in all versions of iTerm 2 before 3.3.6, so update if you're using an affected version.
 2. Install the current version of Homebrew from [http://brew.sh/](http://brew.sh/).
 3. Install GNU Stow with `brew install stow`
@@ -125,7 +143,10 @@ To enable the enhanced history search, you'll need to install [fzf](https://gith
 6. Install some Powerline-compatible or NerdFont fonts from one of the links in the Fonts section above.
     1. In iTerm 2, go to Preferences->Profile in your iTerm 2 preferences, then select one of the Powerline-compatible fonts you just installed.
     2. **Make sure you also specify a Powerline-compatible font for non-ASCII in your iTerm 2 preferences or the prompt separators and branch glyphs will show up garbled**.
-7. Install `fzf` with `brew install fzf`
+7. Install `fzf`
+    1. Install `fzf` with `brew install fzf`
+    2. Run the `sh "$(brew --prefix fzf)/install"` command to configure `fzf`
+    3. Press `Enter` (`y` default) for all questions except `Do you want to update your shell configuration files? ([y]/n)`. For this question, select `n` and press `Enter`.
 
 </details>
 
@@ -242,13 +263,45 @@ As of 2021-11-13, I've added a `zqs` command to start exposing some of the confi
 
 Updates the quickstart kit if it has been longer than seven days since the last update.
 
-##### zqs-disable-bindkey-handling
+##### zqs-compdef-as
+
+Makes it simpler to use one command's completions for another command too.
+
+Usage: `zqs-compdef-as original_command target_command`
+
+Example: To make `z.lua` use the same completions as `cd`, run `zqs-compdef-as cd _zlua`
+
+##### zqs disable-bindkey-handling
 
 Disable `bindkey` setup and alias expansion in the quickstart `.zshrc` so people can use plugins like [globalias](https://github.com/ohmyzsh/ohmyzsh/tree/master/plugins/globalias) to handle it instead.
 
-##### zqs-enable-bindkey-handling
+##### zqs disable-1password-agent
+
+Disable using 1Password's `ssh` agent
+
+##### zqs enable-1password-agent
+
+Enable using 1Password's `ssh` agent starting with the next new ZSH session. This is the default behavior when `op` is in your `$PATH`.
+
+##### zqs enable-bindkey-handling
 
 Let the quickstart's `.zshrc` configure `bindkey` setup and alias expansion. This is the default behavior.
+
+##### zqs disable-fzf-zsh-plugin
+
+Stop loading the [unixorn/fzf-zsh-plugin](https://github.com/unixorn/fzf-zsh-plugin) starting with the next ZSH session.
+
+##### zqs enable-fzf-zsh-plugin
+
+Start loading the [unixorn/fzf-zsh-plugin](https://github.com/unixorn/fzf-zsh-plugin) starting with the next ZSH session. This is the default behavior.
+
+##### zqs disable-diff-so-fancy
+
+Stop loading the [diff-so-fancy](https://github.com/so-fancy/diff-so-fancy) plugin starting with the next ZSH session.
+
+##### zqs enable-diff-so-fancy
+
+Start loading the [diff-so-fancy](https://github.com/so-fancy/diff-so-fancy) plugin starting with the next ZSH session. This is the default behavior.
 
 ##### zqs disable-omz-plugins
 
@@ -298,11 +351,11 @@ Don't run `autoload -U zmv` when creating a new session.
 
 Run `autoload -U zmv` when creating a new session. This is the default behavior.
 
-##### `zqs-disable-zsh-profiling
+##### zqs-disable-zsh-profiling
 
 Disable ZSH's profiler. This is the default.
 
-##### `zqs-enable-zsh-profiling
+##### zqs-enable-zsh-profiling
 
 Turn on ZSH's profiler
 
@@ -363,6 +416,8 @@ If you want to set variables _before_ the quickstart starts loading plugins to a
 After the quickstart sets up its aliases, functions, plugins and ZSH options, it will source every fragment file in `~/.zshrc.d`.
 
 To make it easier to have macOS, FreeBSD or Linux-specific settings tweaks, the quickstart also supports OS-specific pre & post `.zshrc.d` directories. If you want a file to only be sourced on a single OS, the quickstart also checks for `.zshrc.pre-plugins.$(uname).d` and `~/.zshrc.$(uname).d` during loading.
+
+For your convenience, the quickstart will also look for a `.zshrc.work.d` directory, and if it's present, load fragment files from there. This lets you have a separate directory in your dotfiles repository for work-specific customizations.
 
 ### Self-update Settings
 
@@ -487,7 +542,7 @@ Then you can tag working versions, pull from upstream for testing, and if the up
 
 ### Vim
 
-If you're using vim, [spf13](http://vim.spf13.com/) is an excellent starter configuration and plugin collection.
+If you're using vim, [spf13](https://github.com/spf13/spf13-vim) is an excellent starter configuration and plugin collection.
 
 ## Thanks
 

@@ -24,9 +24,9 @@ export GOBIN=$GOPATH/bin
 export PYENV_ROOT=$HOME/.pyenv
 
 # Mac specific installed with homebrew
+# mise itself is activated by the kit's own zsh/zsh/.zshrc.d/001-load-mise-if-present
 if can_haz mise > /dev/null; then
   export GOROOT=$(mise where go 2>/dev/null)
-  eval "$(mise activate zsh)"
 else
   if [[ "$(uname -s)" == "Darwin" ]]; then
     if can_haz brew; then

@@ -47,6 +47,8 @@ warn-about-prompt-change() {
 # as a starting point. This keeps you from having to maintain a fork of
 # the quickstart kit.
 
+zgenom load Aloxaf/fzf-tab
+
 # If zsh-syntax-highlighting is bundled after zsh-history-substring-search,
 # they break, so get the order right.
 zgenom load zdharma-continuum/fast-syntax-highlighting
@@ -85,8 +87,16 @@ zgenom load djui/alias-tips
 # Add my collection of git helper scripts.
 zgenom load unixorn/git-extra-commands
 
+# Add diff-so-fancy so git can use it
+if [[ "$(_zqs-get-setting diff-so-fancy true)" == 'true' ]]; then
+  zgenom load so-fancy/diff-so-fancy
+fi
+
 # Supercharge your history search with fzf
 zgenom load unixorn/fzf-zsh-plugin
+
+# Soup up command history search with fzf.
+zgen load unixorn/fzf-zsh-plugin
 
 # Add my bitbucket git helpers plugin.
 zgenom load unixorn/bitbucket-git-helpers.plugin.zsh
